@@ -3,16 +3,39 @@ from __future__ import annotations
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.responses import Response
 
 from src.core.models import Note, NoteCreate, NoteUpdate
 from src.core.service import NotesService, NotFoundError
-from src.api.main import get_notes_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_service_from_app_state(request: Request) -> NotesService:
+    """Retrieve the NotesService instance from FastAPI app.state.
+
+    This avoids importing the app or main module, preventing circular imports.
+    Raises a 500 error if the service is not initialized.
+    """
+    service = getattr(request.app.state, "notes_service", None)
+    if service is None:
+        # Defensive fallback: try to initialize if repository present
+        repo = getattr(request.app.state, "notes_repo", None)
+        if repo is not None:
+            # Late import is safe here; NotesService is a lightweight class with no FastAPI deps
+            try:
+                service = NotesService(repo)
+                request.app.state.notes_service = service
+            except Exception:
+                logger.exception("Failed to lazily initialize NotesService from app.state")
+                raise HTTPException(status_code=500, detail="Service unavailable")
+        else:
+            logger.error("NotesService not initialized on app.state")
+            raise HTTPException(status_code=500, detail="Service unavailable")
+    return service
 
 
 # PUBLIC_INTERFACE
@@ -23,7 +46,7 @@ router = APIRouter()
     summary="List notes",
     description="Returns the list of all notes. Initially returns an empty list.",
 )
-def list_notes(service: NotesService = Depends(get_notes_service)) -> List[Note]:
+def list_notes(service: NotesService = Depends(_get_service_from_app_state)) -> List[Note]:
     """List all notes.
 
     Returns:
@@ -45,7 +68,7 @@ def list_notes(service: NotesService = Depends(get_notes_service)) -> List[Note]
     summary="Create note",
     description="Create a new note with a title and optional content.",
 )
-def create_note(payload: NoteCreate, service: NotesService = Depends(get_notes_service)) -> Note:
+def create_note(payload: NoteCreate, service: NotesService = Depends(_get_service_from_app_state)) -> Note:
     """Create a note.
 
     Args:
@@ -71,7 +94,7 @@ def create_note(payload: NoteCreate, service: NotesService = Depends(get_notes_s
 )
 def get_note(
     note_id: int = Path(..., ge=1, description="ID of the note to retrieve"),
-    service: NotesService = Depends(get_notes_service),
+    service: NotesService = Depends(_get_service_from_app_state),
 ) -> Note:
     """Get a note by ID.
 
@@ -105,7 +128,7 @@ def get_note(
 def update_note(
     payload: NoteUpdate,
     note_id: int = Path(..., ge=1, description="ID of the note to update"),
-    service: NotesService = Depends(get_notes_service),
+    service: NotesService = Depends(_get_service_from_app_state),
 ) -> Note:
     """Update a note by ID.
 
@@ -138,7 +161,7 @@ def update_note(
 )
 def delete_note(
     note_id: int = Path(..., ge=1, description="ID of the note to delete"),
-    service: NotesService = Depends(get_notes_service),
+    service: NotesService = Depends(_get_service_from_app_state),
 ) -> Response:
     """Delete a note by ID.
 

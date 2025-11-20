@@ -51,22 +51,6 @@ def _init_services() -> None:
         logger.info("Initialized NotesService")
 
 
-# PUBLIC_INTERFACE
-def get_notes_service() -> NotesService:
-    """Provide the app-scoped NotesService instance.
-
-    Returns:
-        NotesService: The application-scoped notes service.
-
-    Note:
-        This function ensures services are initialized before returning the instance,
-        allowing safe usage during OpenAPI generation or other tooling that imports
-        the app without running startup events.
-    """
-    _init_services()
-    return app.state.notes_service  # type: ignore[attr-defined]
-
-
 @app.on_event("startup")
 def on_startup() -> None:
     """FastAPI startup hook to initialize app-scoped services."""
@@ -90,5 +74,5 @@ def health_check() -> JSONResponse:
     return JSONResponse({"message": "Healthy"})
 
 
-# Include Notes router; DI is provided via Depends(get_notes_service)
+# Include Notes router; router resolves its own dependency from app.state
 app.include_router(notes_router, prefix="", tags=["Notes"], dependencies=[])
