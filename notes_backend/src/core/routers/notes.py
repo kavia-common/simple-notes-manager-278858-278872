@@ -3,21 +3,16 @@ from __future__ import annotations
 import logging
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from fastapi.responses import Response
 
 from src.core.models import Note, NoteCreate, NoteUpdate
-from src.core.repository import InMemoryNotesRepository
 from src.core.service import NotesService, NotFoundError
+from src.api.main import get_notes_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-# Instantiate repository and service for in-memory storage
-_repo = InMemoryNotesRepository()
-_service = NotesService(_repo)
 
 
 # PUBLIC_INTERFACE
@@ -28,10 +23,10 @@ _service = NotesService(_repo)
     summary="List notes",
     description="Returns the list of all notes. Initially returns an empty list.",
 )
-def list_notes() -> List[Note]:
+def list_notes(service: NotesService = Depends(get_notes_service)) -> List[Note]:
     """List all notes."""
     try:
-        return _service.list_notes()
+        return service.list_notes()
     except Exception:
         # Avoid leaking internals
         logger.exception("Unhandled error while listing notes")
@@ -46,10 +41,10 @@ def list_notes() -> List[Note]:
     summary="Create note",
     description="Create a new note with a title and optional content.",
 )
-def create_note(payload: NoteCreate) -> Note:
+def create_note(payload: NoteCreate, service: NotesService = Depends(get_notes_service)) -> Note:
     """Create a note."""
     try:
-        return _service.create_note(payload)
+        return service.create_note(payload)
     except Exception:
         logger.exception("Unhandled error while creating note")
         raise HTTPException(status_code=500, detail="An unexpected error occurred")
@@ -65,10 +60,11 @@ def create_note(payload: NoteCreate) -> Note:
 )
 def get_note(
     note_id: int = Path(..., ge=1, description="ID of the note to retrieve"),
+    service: NotesService = Depends(get_notes_service),
 ) -> Note:
     """Get a note by ID."""
     try:
-        return _service.get_note(note_id)
+        return service.get_note(note_id)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")  # noqa: B904
     except Exception:
@@ -87,10 +83,11 @@ def get_note(
 def update_note(
     payload: NoteUpdate,
     note_id: int = Path(..., ge=1, description="ID of the note to update"),
+    service: NotesService = Depends(get_notes_service),
 ) -> Note:
     """Update a note by ID."""
     try:
-        return _service.update_note(note_id, payload)
+        return service.update_note(note_id, payload)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")  # noqa: B904
     except Exception:
@@ -107,10 +104,11 @@ def update_note(
 )
 def delete_note(
     note_id: int = Path(..., ge=1, description="ID of the note to delete"),
+    service: NotesService = Depends(get_notes_service),
 ) -> Response:
     """Delete a note by ID."""
     try:
-        _service.delete_note(note_id)
+        service.delete_note(note_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="Note not found")  # noqa: B904
