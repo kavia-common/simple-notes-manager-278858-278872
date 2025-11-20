@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
@@ -9,6 +10,9 @@ from src.core.repository import InMemoryNotesRepository
 from src.core.routers.notes import router as notes_router
 from src.core.service import NotesService
 
+# Initialize module logger
+logger = logging.getLogger(__name__)
+
 # Configure application-level logging early
 configure_logging()
 
@@ -17,20 +21,11 @@ app = FastAPI(
     title="Notes API",
     version="1.0.0",
     description="A simple, secure Notes API providing in-memory CRUD operations with a layered architecture.",
+    openapi_tags=[
+        {"name": "Health", "description": "Service health and diagnostics."},
+        {"name": "Notes", "description": "CRUD operations for notes."},
+    ],
 )
-
-# OpenAPI tag definitions for grouping endpoints
-openapi_tags = [
-    {
-        "name": "Health",
-        "description": "Service health and diagnostics.",
-    },
-    {
-        "name": "Notes",
-        "description": "CRUD operations for notes.",
-    },
-]
-app.openapi_tags = openapi_tags  # type: ignore[attr-defined]
 
 # CORS configuration per requirements
 app.add_middleware(
@@ -50,19 +45,24 @@ def _init_services() -> None:
     # Only initialize once per process/app instance
     if not hasattr(app.state, "notes_repo"):
         app.state.notes_repo = InMemoryNotesRepository()
+        logger.info("Initialized InMemoryNotesRepository")
     if not hasattr(app.state, "notes_service"):
         app.state.notes_service = NotesService(app.state.notes_repo)
+        logger.info("Initialized NotesService")
 
 
 # PUBLIC_INTERFACE
 def get_notes_service() -> NotesService:
-    """Provide a NotesService instance managed by the app.
+    """Provide the app-scoped NotesService instance.
 
     Returns:
         NotesService: The application-scoped notes service.
+
+    Note:
+        This function ensures services are initialized before returning the instance,
+        allowing safe usage during OpenAPI generation or other tooling that imports
+        the app without running startup events.
     """
-    # Ensure services exist (covers cases where dependency is accessed
-    # before startup events in certain tooling contexts, e.g., OpenAPI generation).
     _init_services()
     return app.state.notes_service  # type: ignore[attr-defined]
 
@@ -71,14 +71,24 @@ def get_notes_service() -> NotesService:
 def on_startup() -> None:
     """FastAPI startup hook to initialize app-scoped services."""
     _init_services()
+    logger.info("Application startup complete")
 
 
 # PUBLIC_INTERFACE
-@app.get("/", tags=["Health"], summary="Health Check", description="Simple health check endpoint.")
+@app.get(
+    "/",
+    tags=["Health"],
+    summary="Health Check",
+    description="Simple health check endpoint.",
+)
 def health_check() -> JSONResponse:
-    """Health check endpoint."""
+    """Health check endpoint.
+
+    Returns:
+        JSONResponse: A simple message indicating service health.
+    """
     return JSONResponse({"message": "Healthy"})
 
 
-# Include Notes router with dependency injection wiring handled inside the router
+# Include Notes router; DI is provided via Depends(get_notes_service)
 app.include_router(notes_router, prefix="", tags=["Notes"], dependencies=[])

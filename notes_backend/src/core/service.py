@@ -24,9 +24,15 @@ class NotesService:
     """Service layer for notes, encapsulating business rules and validation."""
 
     def __init__(self, repository: InMemoryNotesRepository) -> None:
+        """Create a NotesService.
+
+        Args:
+            repository: Repository implementation used for data access.
+        """
         self._repo = repository
 
     def list_notes(self) -> List[Note]:
+        """Return all notes."""
         try:
             return self._repo.list_notes()
         except Exception as exc:
@@ -34,6 +40,7 @@ class NotesService:
             raise
 
     def create_note(self, payload: NoteCreate) -> Note:
+        """Create a new note after sanitizing inputs."""
         try:
             cleaned = NoteCreate(
                 title=_sanitize_text(payload.title),
@@ -45,6 +52,11 @@ class NotesService:
             raise
 
     def get_note(self, note_id: int) -> Note:
+        """Retrieve a note by ID.
+
+        Raises:
+            NotFoundError: If the note does not exist.
+        """
         try:
             note = self._repo.get_note(note_id)
             if note is None:
@@ -57,6 +69,11 @@ class NotesService:
             raise
 
     def update_note(self, note_id: int, payload: NoteUpdate) -> Note:
+        """Update a note by ID.
+
+        Raises:
+            NotFoundError: If the note does not exist.
+        """
         try:
             cleaned = NoteUpdate(
                 title=_sanitize_text(payload.title) if payload.title is not None else None,
@@ -73,6 +90,11 @@ class NotesService:
             raise
 
     def delete_note(self, note_id: int) -> None:
+        """Delete a note by ID.
+
+        Raises:
+            NotFoundError: If the note does not exist.
+        """
         try:
             deleted = self._repo.delete_note(note_id)
             if not deleted:

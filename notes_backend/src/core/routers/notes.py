@@ -24,7 +24,11 @@ router = APIRouter()
     description="Returns the list of all notes. Initially returns an empty list.",
 )
 def list_notes(service: NotesService = Depends(get_notes_service)) -> List[Note]:
-    """List all notes."""
+    """List all notes.
+
+    Returns:
+        List[Note]: All notes currently stored.
+    """
     try:
         return service.list_notes()
     except Exception:
@@ -42,7 +46,14 @@ def list_notes(service: NotesService = Depends(get_notes_service)) -> List[Note]
     description="Create a new note with a title and optional content.",
 )
 def create_note(payload: NoteCreate, service: NotesService = Depends(get_notes_service)) -> Note:
-    """Create a note."""
+    """Create a note.
+
+    Args:
+        payload: The note data to create.
+
+    Returns:
+        Note: The created note with its ID.
+    """
     try:
         return service.create_note(payload)
     except Exception:
@@ -62,10 +73,21 @@ def get_note(
     note_id: int = Path(..., ge=1, description="ID of the note to retrieve"),
     service: NotesService = Depends(get_notes_service),
 ) -> Note:
-    """Get a note by ID."""
+    """Get a note by ID.
+
+    Args:
+        note_id: ID of the note to retrieve.
+
+    Returns:
+        Note: The requested note.
+
+    Raises:
+        HTTPException: 404 if not found; 500 for unexpected errors.
+    """
     try:
         return service.get_note(note_id)
     except NotFoundError:
+        logger.info("Note %s not found", note_id)
         raise HTTPException(status_code=404, detail="Note not found")  # noqa: B904
     except Exception:
         logger.exception("Unhandled error while retrieving note %s", note_id)
@@ -85,10 +107,22 @@ def update_note(
     note_id: int = Path(..., ge=1, description="ID of the note to update"),
     service: NotesService = Depends(get_notes_service),
 ) -> Note:
-    """Update a note by ID."""
+    """Update a note by ID.
+
+    Args:
+        payload: Fields to update.
+        note_id: ID of the note to update.
+
+    Returns:
+        Note: The updated note.
+
+    Raises:
+        HTTPException: 404 if not found; 500 for unexpected errors.
+    """
     try:
         return service.update_note(note_id, payload)
     except NotFoundError:
+        logger.info("Note %s not found for update", note_id)
         raise HTTPException(status_code=404, detail="Note not found")  # noqa: B904
     except Exception:
         logger.exception("Unhandled error while updating note %s", note_id)
@@ -106,11 +140,22 @@ def delete_note(
     note_id: int = Path(..., ge=1, description="ID of the note to delete"),
     service: NotesService = Depends(get_notes_service),
 ) -> Response:
-    """Delete a note by ID."""
+    """Delete a note by ID.
+
+    Args:
+        note_id: ID of the note to delete.
+
+    Returns:
+        Response: 204 No Content on success.
+
+    Raises:
+        HTTPException: 404 if not found; 500 for unexpected errors.
+    """
     try:
         service.delete_note(note_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except NotFoundError:
+        logger.info("Note %s not found for deletion", note_id)
         raise HTTPException(status_code=404, detail="Note not found")  # noqa: B904
     except Exception:
         logger.exception("Unhandled error while deleting note %s", note_id)

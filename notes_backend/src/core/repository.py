@@ -16,6 +16,7 @@ class InMemoryNotesRepository:
     """Thread-safe in-memory repository for storing notes."""
 
     def __init__(self) -> None:
+        """Create an in-memory notes repository."""
         self._lock = threading.Lock()
         self._notes: Dict[int, Note] = {}
         self._next_id: int = 1
