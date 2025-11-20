@@ -25,6 +25,21 @@ API Docs:
 - Swagger UI: http://localhost:3001/docs
 - OpenAPI JSON: http://localhost:3001/openapi.json
 
+## Frontend Integration
+
+- Start this backend first on port 3001, then start the React frontend on port 3000.
+- CORS is configured to allow `http://localhost:3000` for methods GET, POST, PUT, DELETE.
+- Endpoints used by the frontend:
+  - GET /notes
+  - POST /notes
+  - GET /notes/{id}
+  - PUT /notes/{id}
+  - DELETE /notes/{id}
+
+If you modify routes or models, regenerate the OpenAPI snapshot:
+- python -m src.api.generate_openapi
+This writes to `interfaces/openapi.json`.
+
 ## Project structure
 - src/api/main.py → FastAPI app, CORS, routing
 - src/core/models.py → Pydantic models
